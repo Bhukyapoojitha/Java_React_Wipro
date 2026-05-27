@@ -1,0 +1,356 @@
+📘 ✅ BANK MANAGEMENT SYSTEM – COMPLETE THEORY NOTES
+
+✅ 1. What is Spring Boot?
+👉 Spring Boot is a framework that simplifies building Java web applications.
+✅ Key Features:
+
+Auto configuration ✅
+Embedded server (Tomcat) ✅
+No XML configuration ✅
+Fast development ✅
+
+
+✅ 2. What is Spring Data JPA?
+👉 JPA = Java Persistence API
+👉 Helps to map Java objects → database tables
+✅ Spring Data JPA provides:
+
+Automatic CRUD operations
+No need to write SQL ✅
+
+
+✅ 3. Project Architecture (VERY IMPORTANT)
+Controller → Service → Repository → Database
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LayerResponsibilityControllerHandles HTTP requestsServiceBusiness logicRepositoryDatabase interactionEntityTable representation
+
+✅ 4. Entity Class
+👉 Represents a table in database
+Example:
+Java@Entitypublic class Account {}Show more lines
+✅ Important annotations:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+AnnotationUse@EntityMarks class as table@TableTable name@IdPrimary key@GeneratedValueAuto increment
+
+✅ 5. Repository Layer
+👉 Interface that connects to DB
+Javapublic interface AccountRepository extends JpaRepository<Account, Long>``Show more lines
+✅ You get:
+
+save()
+findAll()
+findById()
+deleteById()
+
+
+✅ Custom Queries
+JavafindByAccountType(String type)findByBalanceGreaterThan(Double amount)``Show more lines
+👉 Spring generates SQL automatically ✅
+
+✅ 6. Service Layer
+👉 Contains business logic
+Java@Servicepublic class AccountServiceImpShow more lines
+Responsibilities:
+
+Call repository
+Apply logic
+Validate data
+
+
+✅ 7. Controller Layer
+👉 Handles HTTP APIs
+Java@RestController@RequestMapping("/accounts")``Show more lines
+
+✅ HTTP Methods
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+MethodPurposeGETReadPOSTInsertPUTUpdateDELETERemove
+
+✅ 8. CRUD Operations
+
+🔹 CREATE (POST)
+Java@PostMapping``Show more lines
+👉 Insert new record
+
+🔹 READ (GET)
+Java@GetMapping``Show more lines
+👉 Fetch all data
+
+🔹 READ BY ID
+Java@GetMapping("/{id}")Show more lines
+
+🔹 UPDATE (PUT)
+Java@PutMapping("/{id}")``Show more lines
+👉 Modify existing data
+
+🔹 DELETE
+Java@DeleteMapping("/{id}")Show more lines
+
+✅ 9. Relationship Mapping
+
+✅ ManyToOne
+Java@ManyToOne@JoinColumn(name = "customer_id")Show more lines
+👉 Many accounts belong to one customer ✅
+
+✅ Importance
+✔ Avoid duplication
+✔ Maintain relationships
+✔ Create foreign keys
+
+✅ 10. Swagger (API Testing)
+👉 Swagger UI helps test APIs
+http://localhost:8080/swagger-ui/index.html
+
+✅ Allows:
+
+API testing
+JSON input/output
+No Postman needed
+
+
+✅ 11. Application.properties
+.propertiesspring.datasource.url=jdbc:mysql://localhost:3306/bankdbspring.datasource.username=rootspring.datasource.password=12345spring.jpa.hibernate.ddl-auto=updatespring.jpa.show-sql=trueShow more lines
+
+✅ Key settings
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+PropertyMeaningddl-auto=updateAuto create tablesshow-sqlShow queries
+
+✅ 12. Flow of Execution
+Client → Controller → Service → Repository → DB
+
+
+✅ 13. Why Service Layer?
+👉 To separate logic from controller
+✅ Benefits:
+
+Clean code
+Reusability
+Easy testing
+
+
+✅ 14. Why Repository Layer?
+👉 Handles DB operations automatically
+✅ No JDBC
+✅ No SQL writing
+
+✅ 15. Difference: PUT vs POST
+
+
+
+
+
+
+
+
+
+
+
+
+
+POSTPUTInsert newUpdate existing
+
+✅ 16. Important Finder Methods
+JavafindByName()findByEmail()findByBalanceGreaterThan()findByAccountType()Show more lines
+
+✅ 17. Sorting
+JavafindAllByOrderByBalanceAsc()Show more lines
+
+✅ 18. Why Transaction has no Update/Delete?
+✅ Real-world reason:
+
+Transactions are history
+Should not change
+Should not delete
+
+
+✅ 19. Common Errors (You Faced)
+
+❌ 1. method not found
+👉 Cause:
+field name mismatch
+
+
+❌ 2. import not resolved
+👉 Cause:
+missing dependency
+
+
+❌ 3. whitelabel error
+👉 Cause:
+wrong URL
+
+
+✅ 20. Package Structure
+com.wipro.BankManagementSystem
+│
+├── entity
+├── repository
+├── service
+├── controller
+
+
+✅ 21. Annotations Summary (VERY IMPORTANT)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+AnnotationUse@EntityTable@IdPrimary key@GeneratedValueAuto ID@RestControllerAPI@ServiceBusiness logic@RepositoryDB layer@AutowiredDependency injection
+
+✅ 22. One-Line Definitions (VIVA)
+👉 Spring Boot
+
+Framework to build Java applications quickly
+
+👉 JPA
+
+Maps Java objects to database tables
+
+👉 Repository
+
+Used to interact with database
+
+👉 Service
+
+Contains business logic
+
+👉 Controller
+
+Handles API requests
+
+
+✅ 23. Assignment Explanation (IMPORTANT)
+👉 You can say:
+
+"This project is a Bank Management System developed using Spring Boot and Spring Data JPA. It demonstrates CRUD operations, entity relationships, and RESTful APIs with layered architecture."
+
+
+✅ ✅ FINAL CONCLUSION
+✔ You implemented:
+
+✅ 4 Entities
+✅ CRUD operations
+✅ Finder methods
+✅ JPA relationships
+✅ REST APIs
+✅ Swagger testing
