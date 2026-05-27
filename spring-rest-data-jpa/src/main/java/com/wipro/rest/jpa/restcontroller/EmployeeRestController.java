@@ -1,0 +1,111 @@
+package com.wipro.rest.jpa.restcontroller;
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.wipro.rest.jpa.entity.Employee;
+import com.wipro.rest.jpa.service.IEmployeeService;
+
+@RestController
+@RequestMapping("/api/employees")
+class EmployeeRestController {
+
+	@Autowired
+	IEmployeeService service;
+
+	@PostMapping(value = "/add", consumes = "application/json")
+	public Employee addEmp(@RequestBody Employee emp) {
+
+		return service.addEmployee(emp);
+
+	}
+
+	@PutMapping(value = "/update", consumes = "application/json")
+	public Employee updateEmp(@RequestBody Employee emp) {
+
+		return service.updateEmployee(emp);
+
+	}
+
+	@GetMapping(value = "/getall", produces = "application/json")
+	public List<Employee> getAllEmployees() {
+
+		return service.getAllEmployees();
+
+	}
+
+	@GetMapping("/getbyeid/{eid}")
+	public Employee getByEid(@PathVariable int eid) {
+
+		return service.getByEid(eid);
+
+	}
+
+	@DeleteMapping("/deletebyeid/{eid}")
+	public String deleteByEid(@PathVariable int eid) {
+
+		String msg = "";
+		service.deleteByEid(eid);
+
+		Employee emp = service.getByEid(eid);
+
+		if (emp == null) {
+
+			msg = "Record Deleted Successfully ";
+		}
+
+		return msg;
+	}
+
+	@GetMapping("/getbyename/{ename}")
+	public Employee getByEname(@PathVariable String ename) {
+
+		return service.getByEname(ename);
+
+	}
+
+	@GetMapping("/getbysalarygt/{sal}")
+	public List<Employee> getBySalaryGT(@PathVariable double sal) {
+
+		return service.getBySalaryGT(sal);
+
+	}
+
+	@GetMapping(value = "/getallsorted", produces = "application/json")
+	public List<Employee> getAllEmployeesSorted() {
+
+		return service.findAllBySorted();
+
+	}
+
+	@PutMapping("/updatesalary/{salary}/{eid}")
+	public String updateSalary(@PathVariable  double salary,@PathVariable int eid) {
+
+		int count = service.updateSalary(salary, eid);
+		
+		return count+ "record updated";
+	}
+
+	
+	
+	@GetMapping("/sumofsalary")
+	public String  sumOfSalary() {
+		
+		return   "Sum of Salaries : "+service.sumOfSalary();
+		
+	}
+	
+	
+	
+	
+	
+}
