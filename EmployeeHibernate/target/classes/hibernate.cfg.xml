@@ -1,0 +1,29 @@
+
+
+
+<hibernate-configuration>
+
+	<session-factory>
+	
+	
+	<!-- Database connection properties - Driver, URL, user, password -->
+		<property name="hibernate.connection.driver_class">com.mysql.cj.jdbc.Driver</property>
+		<property name="hibernate.connection.url">jdbc:mysql://localhost:3306/mydb</property>
+		<property name="hibernate.connection.username">root</property>
+		<property name="hibernate.connection.password">12345</property>
+	
+	
+		<property name="hbm2ddl.auto">update</property>
+		<property name="dialect">org.hibernate.dialect.MySQL8Dialect</property>
+		<property name="show_sql">true</property>
+	
+	<!-- Mapping model/entity class having annotations   -->
+	
+		<mapping  class="com.hexaware.ems.entity.Employee"  />  
+	
+
+	</session-factory>
+
+
+</hibernate-configuration>		
+
