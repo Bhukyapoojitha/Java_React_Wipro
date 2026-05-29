@@ -55,23 +55,23 @@ public class AccountController {
 //        return "Account Deleted Successfully";
 //    }
 
-    @PostMapping("/debit/{accountNumber}/{amount}")
-    public String debit(
-            @PathVariable String accountNumber,
-            @PathVariable double amount) {
-
-        service.debit(accountNumber, amount);
-
-        return "Amount Debited";
-    }
-
-    @PostMapping("/credit/{accountNumber}/{amount}")
-    public String credit(
-            @PathVariable String accountNumber,
-            @PathVariable double amount) {
-
-        service.credit(accountNumber, amount);
-
-        return "Amount Credited";
-    }
+//    @PostMapping("/debit/{accountNumber}/{amount}")
+//    public String debit(
+//            @PathVariable String accountNumber,
+//            @PathVariable double amount) {
+//
+//        service.debit(accountNumber, amount);
+//
+//        return "Amount Debited";
+//    }
+//
+//    @PostMapping("/credit/{accountNumber}/{amount}")
+//    public String credit(
+//            @PathVariable String accountNumber,
+//            @PathVariable double amount) {
+//
+//        service.credit(accountNumber, amount);
+//
+//        return "Amount Credited";
+//    }
 }

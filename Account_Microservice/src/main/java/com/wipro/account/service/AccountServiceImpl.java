@@ -53,6 +53,8 @@ public class AccountServiceImpl
         account.setAccountType(
                 updatedAccount.getAccountType()
         );
+        
+        account.setBalance(updatedAccount.getBalance());
 
         return repository.save(account);
     }
@@ -65,37 +67,37 @@ public class AccountServiceImpl
 //        repository.delete(account);
 //    }
 
-    @Override
-    public void debit(String accountNumber,
-                      double amount) {
+//    @Override
+//    public void debit(String accountNumber,
+//                      double amount) {
+//
+//        Account account = getAccount(accountNumber);
+//
+//        if(account.getBalance() < amount) {
+//            throw new RuntimeException(
+//                    "Insufficient Balance"
+//            );
+//        }
+//
+//        account.setBalance(
+//                account.getBalance() - amount
+//        );
+//
+//        repository.save(account);
+//    }
 
-        Account account = getAccount(accountNumber);
+//    @Override
+//    public void credit(String accountNumber,
+//                       double amount) {
+//
+//        Account account = getAccount(accountNumber);
+//
+//        account.setBalance(
+//                account.getBalance() + amount
+//        );
 
-        if(account.getBalance() < amount) {
-            throw new RuntimeException(
-                    "Insufficient Balance"
-            );
-        }
-
-        account.setBalance(
-                account.getBalance() - amount
-        );
-
-        repository.save(account);
-    }
-
-    @Override
-    public void credit(String accountNumber,
-                       double amount) {
-
-        Account account = getAccount(accountNumber);
-
-        account.setBalance(
-                account.getBalance() + amount
-        );
-
-        repository.save(account);
-    }
+//        repository.save(account);
+//    }
 }
 
 
