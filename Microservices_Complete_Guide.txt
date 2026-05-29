@@ -1,0 +1,747 @@
+================================================================
+   COMPLETE MICROSERVICES GUIDE
+   Eureka + API Gateway + Circuit Breaker + Load Balancing + Swagger
+================================================================
+
+AUTHOR: Study Notes
+TOPIC: Spring Boot Microservices - Complete Setup Guide
+PROJECTS: account_microservice, transaction_microservice
+
+================================================================
+TABLE OF CONTENTS
+================================================================
+1. Project Structure
+2. Phase 1 - Test Existing Microservices
+3. Phase 2 - Push to Git Without Eureka
+4. Phase 3 - Create Eureka Server
+5. Phase 4 - Update Both Microservices for Eureka
+6. Phase 5 - Create API Gateway
+7. Phase 6 - Add Circuit Breaker
+8. Phase 7 - Add Swagger Configuration
+9. Phase 8 - Final Testing
+10. Running Order
+11. Common Errors and Fixes
+
+================================================================
+1. PROJECT STRUCTURE
+================================================================
+
+Your Main Project Folder/
+|
+|-- account_microservice/        (already exists)
+|-- transaction_microservice/    (already exists)
+|-- eureka-server/               (will create)
+|-- api-gateway/                 (will create)
+
+================================================================
+2. PHASE 1 - TEST EXISTING MICROSERVICES
+================================================================
+
+STEP 1: Check account_microservice → application.properties
+------------------------------------------------------------
+server.port=8081
+spring.application.name=ACCOUNT-SERVICE
+
+STEP 2: Check transaction_microservice → application.properties
+---------------------------------------------------------------
+server.port=8082
+spring.application.name=TRANSACTION-SERVICE
+
+STEP 3: Run both and test in Postman
+-------------------------------------
+GET http://localhost:8081/account/getAll
+GET http://localhost:8082/transaction/getAll
+
+=> Both working? Then go to Phase 2
+
+================================================================
+3. PHASE 2 - PUSH TO GIT WITHOUT EUREKA
+================================================================
+
+In STS:
+Right click account_microservice
+→ Team → Commit
+→ Message: "microservice without eureka"
+→ Commit and Push
+
+Right click transaction_microservice
+→ Team → Commit
+→ Message: "microservice without eureka"
+→ Commit and Push
+
+================================================================
+4. PHASE 3 - CREATE EUREKA SERVER
+================================================================
+
+STEP 1: Go to https://start.spring.io
+--------------------------------------
+Project       → Maven
+Language      → Java
+Spring Boot   → 3.2.x
+Group         → com.example
+Artifact      → eureka-server
+Name          → eureka-server
+Package Name  → com.example.eurekaserver
+Packaging     → Jar
+Java          → 17
+
+Dependency to Add:
+  Search: Eureka Server → Click Add
+
+Click GENERATE → Extract ZIP → Import in STS
+(File → Import → Maven → Existing Maven Projects)
+
+----------------------------------------------------------------
+STEP 2: FILE 1 - EurekaServerApplication.java
+----------------------------------------------------------------
+Location: src/main/java/com/example/eurekaserver/EurekaServerApplication.java
+
+package com.example.eurekaserver;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.netflix.eureka.server.EnableEurekaServer;
+
+@SpringBootApplication
+@EnableEurekaServer
+public class EurekaServerApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(EurekaServerApplication.class, args);
+    }
+}
+
+----------------------------------------------------------------
+STEP 3: FILE 2 - application.properties (Eureka Server)
+----------------------------------------------------------------
+Location: src/main/resources/application.properties
+
+server.port=8761
+spring.application.name=eureka-server
+eureka.client.register-with-eureka=false
+eureka.client.fetch-registry=false
+
+================================================================
+5. PHASE 4 - UPDATE BOTH MICROSERVICES FOR EUREKA
+================================================================
+
+STEP 1: Add dependency in account_microservice → pom.xml
+---------------------------------------------------------
+Add inside <dependencies> tag:
+
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+</dependency>
+
+Also add OUTSIDE <dependencies> but INSIDE <project> tag:
+
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-dependencies</artifactId>
+            <version>2023.0.0</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+
+Right click pom.xml → Maven → Update Project → OK
+
+----------------------------------------------------------------
+STEP 2: Update account_microservice → application.properties
+----------------------------------------------------------------
+# Already existing lines - DON'T change
+server.port=8081
+spring.application.name=ACCOUNT-SERVICE
+
+# ADD these new lines at bottom
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
+eureka.client.register-with-eureka=true
+eureka.client.fetch-registry=true
+
+----------------------------------------------------------------
+STEP 3: Add dependency in transaction_microservice → pom.xml
+----------------------------------------------------------------
+Same as above - add inside <dependencies>:
+
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+</dependency>
+
+Same dependencyManagement block as above.
+Right click pom.xml → Maven → Update Project → OK
+
+----------------------------------------------------------------
+STEP 4: Update transaction_microservice → application.properties
+----------------------------------------------------------------
+# Already existing lines - DON'T change
+server.port=8082
+spring.application.name=TRANSACTION-SERVICE
+
+# ADD these new lines at bottom
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
+eureka.client.register-with-eureka=true
+eureka.client.fetch-registry=true
+
+----------------------------------------------------------------
+STEP 5: Verify in Eureka Dashboard
+----------------------------------------------------------------
+Run in this order:
+1. Right click eureka-server → Run As → Spring Boot App
+2. Right click account_microservice → Run As → Spring Boot App
+3. Right click transaction_microservice → Run As → Spring Boot App
+
+Open browser: http://localhost:8761
+
+You should see:
+  ACCOUNT-SERVICE      → UP
+  TRANSACTION-SERVICE  → UP
+
+================================================================
+6. PHASE 5 - CREATE API GATEWAY
+================================================================
+
+STEP 1: Go to https://start.spring.io
+--------------------------------------
+Project       → Maven
+Language      → Java
+Spring Boot   → 3.2.x
+Group         → com.example
+Artifact      → api-gateway
+Name          → api-gateway
+Package Name  → com.example.apigateway
+Packaging     → Jar
+Java          → 17
+
+Dependencies to Add:
+  Search: Gateway               → Click Add
+  Search: Eureka Discovery Client → Click Add
+
+Click GENERATE → Extract ZIP → Import in STS
+
+----------------------------------------------------------------
+STEP 2: FILE 1 - ApiGatewayApplication.java
+----------------------------------------------------------------
+Location: src/main/java/com/example/apigateway/ApiGatewayApplication.java
+
+package com.example.apigateway;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class ApiGatewayApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(ApiGatewayApplication.class, args);
+    }
+}
+
+----------------------------------------------------------------
+STEP 3: FILE 2 - application.properties (API Gateway)
+----------------------------------------------------------------
+Location: src/main/resources/application.properties
+
+server.port=8080
+spring.application.name=API-GATEWAY
+
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
+eureka.client.register-with-eureka=true
+eureka.client.fetch-registry=true
+
+# Route 1 - Account Service
+spring.cloud.gateway.routes[0].id=account-service
+spring.cloud.gateway.routes[0].uri=lb://ACCOUNT-SERVICE
+spring.cloud.gateway.routes[0].predicates[0]=Path=/account/**
+
+# Route 2 - Transaction Service
+spring.cloud.gateway.routes[1].id=transaction-service
+spring.cloud.gateway.routes[1].uri=lb://TRANSACTION-SERVICE
+spring.cloud.gateway.routes[1].predicates[0]=Path=/transaction/**
+
+================================================================
+7. PHASE 6 - ADD CIRCUIT BREAKER
+================================================================
+
+STEP 1: Add dependency in api-gateway → pom.xml
+------------------------------------------------
+Add inside <dependencies> tag:
+
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+</dependency>
+
+Right click pom.xml → Maven → Update Project → OK
+
+----------------------------------------------------------------
+STEP 2: Create FallbackController.java in api-gateway
+----------------------------------------------------------------
+Location: src/main/java/com/example/apigateway/FallbackController.java
+
+How to create in STS:
+  api-gateway → src/main/java → com.example.apigateway
+  → Right click → New → Class → Name: FallbackController → Finish
+
+package com.example.apigateway;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/fallback")
+public class FallbackController {
+
+    @GetMapping("/account")
+    public String accountFallback() {
+        return "Account Service is currently down. Please try again later!";
+    }
+
+    @GetMapping("/transaction")
+    public String transactionFallback() {
+        return "Transaction Service is currently down. Please try again later!";
+    }
+}
+
+----------------------------------------------------------------
+STEP 3: Update api-gateway → application.properties
+----------------------------------------------------------------
+Add below existing routes:
+
+# Update Route 1 - Add Circuit Breaker filter
+spring.cloud.gateway.routes[0].filters[0].name=CircuitBreaker
+spring.cloud.gateway.routes[0].filters[0].args.name=accountCB
+spring.cloud.gateway.routes[0].filters[0].args.fallbackUri=forward:/fallback/account
+
+# Update Route 2 - Add Circuit Breaker filter
+spring.cloud.gateway.routes[1].filters[0].name=CircuitBreaker
+spring.cloud.gateway.routes[1].filters[0].args.name=transactionCB
+spring.cloud.gateway.routes[1].filters[0].args.fallbackUri=forward:/fallback/transaction
+
+# Circuit Breaker Settings for Account
+resilience4j.circuitbreaker.instances.accountCB.failure-rate-threshold=50
+resilience4j.circuitbreaker.instances.accountCB.wait-duration-in-open-state=10s
+resilience4j.circuitbreaker.instances.accountCB.sliding-window-size=5
+
+# Circuit Breaker Settings for Transaction
+resilience4j.circuitbreaker.instances.transactionCB.failure-rate-threshold=50
+resilience4j.circuitbreaker.instances.transactionCB.wait-duration-in-open-state=10s
+resilience4j.circuitbreaker.instances.transactionCB.sliding-window-size=5
+
+================================================================
+8. PHASE 7 - ADD SWAGGER CONFIGURATION
+================================================================
+
+STEP 1: Add Swagger dependency in account_microservice → pom.xml
+-----------------------------------------------------------------
+<dependency>
+    <groupId>org.springdoc</groupId>
+    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+    <version>2.3.0</version>
+</dependency>
+
+Right click pom.xml → Maven → Update Project → OK
+
+STEP 2: Add Swagger dependency in transaction_microservice → pom.xml
+---------------------------------------------------------------------
+<dependency>
+    <groupId>org.springdoc</groupId>
+    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+    <version>2.3.0</version>
+</dependency>
+
+Right click pom.xml → Maven → Update Project → OK
+
+STEP 3: Add Swagger dependency in api-gateway → pom.xml
+--------------------------------------------------------
+NOTE: Gateway uses webflux - different dependency!
+
+<dependency>
+    <groupId>org.springdoc</groupId>
+    <artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+    <version>2.3.0</version>
+</dependency>
+
+Right click pom.xml → Maven → Update Project → OK
+
+----------------------------------------------------------------
+STEP 4: Create SwaggerConfig.java in account_microservice
+----------------------------------------------------------------
+Location: src/main/java/com/example/accountmicroservice/SwaggerConfig.java
+
+package com.example.accountmicroservice;
+
+import io.swagger.v3.oas.annotations.OpenAPIDefinition;
+import io.swagger.v3.oas.annotations.info.Info;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@OpenAPIDefinition(
+    info = @Info(
+        title = "Account Service API",
+        version = "1.0",
+        description = "Account Microservice Endpoints"
+    )
+)
+public class SwaggerConfig {
+}
+
+----------------------------------------------------------------
+STEP 5: Create SwaggerConfig.java in transaction_microservice
+----------------------------------------------------------------
+Location: src/main/java/com/example/transactionmicroservice/SwaggerConfig.java
+
+package com.example.transactionmicroservice;
+
+import io.swagger.v3.oas.annotations.OpenAPIDefinition;
+import io.swagger.v3.oas.annotations.info.Info;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@OpenAPIDefinition(
+    info = @Info(
+        title = "Transaction Service API",
+        version = "1.0",
+        description = "Transaction Microservice Endpoints"
+    )
+)
+public class SwaggerConfig {
+}
+
+----------------------------------------------------------------
+STEP 6: Create SwaggerConfig.java in api-gateway
+----------------------------------------------------------------
+Location: src/main/java/com/example/apigateway/SwaggerConfig.java
+
+package com.example.apigateway;
+
+import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import io.swagger.v3.oas.annotations.OpenAPIDefinition;
+import io.swagger.v3.oas.annotations.info.Info;
+
+@Configuration
+@OpenAPIDefinition(
+    info = @Info(
+        title = "API Gateway",
+        version = "1.0",
+        description = "Gateway for all Microservices"
+    )
+)
+public class SwaggerConfig {
+
+    @Bean
+    public GroupedOpenApi accountApi() {
+        return GroupedOpenApi.builder()
+                .group("account-service")
+                .pathsToMatch("/account/**")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi transactionApi() {
+        return GroupedOpenApi.builder()
+                .group("transaction-service")
+                .pathsToMatch("/transaction/**")
+                .build();
+    }
+}
+
+----------------------------------------------------------------
+STEP 7: Add Swagger properties in account_microservice
+----------------------------------------------------------------
+Add at bottom of application.properties:
+
+springdoc.api-docs.path=/v3/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+
+----------------------------------------------------------------
+STEP 8: Add Swagger properties in transaction_microservice
+----------------------------------------------------------------
+Add at bottom of application.properties:
+
+springdoc.api-docs.path=/v3/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+
+----------------------------------------------------------------
+STEP 9: Add Swagger + API Docs routes in api-gateway
+----------------------------------------------------------------
+Add at bottom of application.properties:
+
+# Swagger UI properties
+springdoc.api-docs.path=/v3/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+springdoc.swagger-ui.enabled=true
+
+# Tell gateway where each service docs are
+springdoc.swagger-ui.urls[0].name=account-service
+springdoc.swagger-ui.urls[0].url=/account/v3/api-docs
+
+springdoc.swagger-ui.urls[1].name=transaction-service
+springdoc.swagger-ui.urls[1].url=/transaction/v3/api-docs
+
+# API Docs routes (add to existing routes)
+spring.cloud.gateway.routes[2].id=account-service-docs
+spring.cloud.gateway.routes[2].uri=lb://ACCOUNT-SERVICE
+spring.cloud.gateway.routes[2].predicates[0]=Path=/account/v3/api-docs
+
+spring.cloud.gateway.routes[3].id=transaction-service-docs
+spring.cloud.gateway.routes[3].uri=lb://TRANSACTION-SERVICE
+spring.cloud.gateway.routes[3].predicates[0]=Path=/transaction/v3/api-docs
+
+================================================================
+9. COMPLETE application.properties FILES (FINAL VERSION)
+================================================================
+
+----------------------------------------------------------------
+account_microservice → application.properties (COMPLETE FILE)
+----------------------------------------------------------------
+server.port=8081
+spring.application.name=ACCOUNT-SERVICE
+
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
+eureka.client.register-with-eureka=true
+eureka.client.fetch-registry=true
+
+springdoc.api-docs.path=/v3/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+
+----------------------------------------------------------------
+transaction_microservice → application.properties (COMPLETE FILE)
+----------------------------------------------------------------
+server.port=8082
+spring.application.name=TRANSACTION-SERVICE
+
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
+eureka.client.register-with-eureka=true
+eureka.client.fetch-registry=true
+
+springdoc.api-docs.path=/v3/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+
+----------------------------------------------------------------
+eureka-server → application.properties (COMPLETE FILE)
+----------------------------------------------------------------
+server.port=8761
+spring.application.name=eureka-server
+
+eureka.client.register-with-eureka=false
+eureka.client.fetch-registry=false
+
+----------------------------------------------------------------
+api-gateway → application.properties (COMPLETE FILE)
+----------------------------------------------------------------
+server.port=8080
+spring.application.name=API-GATEWAY
+
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
+eureka.client.register-with-eureka=true
+eureka.client.fetch-registry=true
+
+# Route 1 - Account Service
+spring.cloud.gateway.routes[0].id=account-service
+spring.cloud.gateway.routes[0].uri=lb://ACCOUNT-SERVICE
+spring.cloud.gateway.routes[0].predicates[0]=Path=/account/**
+spring.cloud.gateway.routes[0].filters[0].name=CircuitBreaker
+spring.cloud.gateway.routes[0].filters[0].args.name=accountCB
+spring.cloud.gateway.routes[0].filters[0].args.fallbackUri=forward:/fallback/account
+
+# Route 2 - Transaction Service
+spring.cloud.gateway.routes[1].id=transaction-service
+spring.cloud.gateway.routes[1].uri=lb://TRANSACTION-SERVICE
+spring.cloud.gateway.routes[1].predicates[0]=Path=/transaction/**
+spring.cloud.gateway.routes[1].filters[0].name=CircuitBreaker
+spring.cloud.gateway.routes[1].filters[0].args.name=transactionCB
+spring.cloud.gateway.routes[1].filters[0].args.fallbackUri=forward:/fallback/transaction
+
+# Route 3 - Account API Docs
+spring.cloud.gateway.routes[2].id=account-service-docs
+spring.cloud.gateway.routes[2].uri=lb://ACCOUNT-SERVICE
+spring.cloud.gateway.routes[2].predicates[0]=Path=/account/v3/api-docs
+
+# Route 4 - Transaction API Docs
+spring.cloud.gateway.routes[3].id=transaction-service-docs
+spring.cloud.gateway.routes[3].uri=lb://TRANSACTION-SERVICE
+spring.cloud.gateway.routes[3].predicates[0]=Path=/transaction/v3/api-docs
+
+# Circuit Breaker Config
+resilience4j.circuitbreaker.instances.accountCB.failure-rate-threshold=50
+resilience4j.circuitbreaker.instances.accountCB.wait-duration-in-open-state=10s
+resilience4j.circuitbreaker.instances.accountCB.sliding-window-size=5
+
+resilience4j.circuitbreaker.instances.transactionCB.failure-rate-threshold=50
+resilience4j.circuitbreaker.instances.transactionCB.wait-duration-in-open-state=10s
+resilience4j.circuitbreaker.instances.transactionCB.sliding-window-size=5
+
+# Swagger Config
+springdoc.api-docs.path=/v3/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+springdoc.swagger-ui.enabled=true
+springdoc.swagger-ui.urls[0].name=account-service
+springdoc.swagger-ui.urls[0].url=/account/v3/api-docs
+springdoc.swagger-ui.urls[1].name=transaction-service
+springdoc.swagger-ui.urls[1].url=/transaction/v3/api-docs
+
+================================================================
+10. PHASE 8 - FINAL TESTING
+================================================================
+
+STEP 1: Run All Services in This Order in STS
+----------------------------------------------
+1. eureka-server            → Run As → Spring Boot App
+2. account_microservice     → Run As → Spring Boot App
+3. transaction_microservice → Run As → Spring Boot App
+4. api-gateway              → Run As → Spring Boot App
+
+STEP 2: Check Eureka Dashboard
+-------------------------------
+Open: http://localhost:8761
+
+Should show:
+  ACCOUNT-SERVICE      → UP
+  TRANSACTION-SERVICE  → UP
+  API-GATEWAY          → UP
+
+STEP 3: Test APIs via Postman
+------------------------------
+# Old way (direct) - still works
+GET http://localhost:8081/account/getAll
+GET http://localhost:8082/transaction/getAll
+
+# New way (through gateway) - use this
+GET http://localhost:8080/account/getAll
+GET http://localhost:8080/transaction/getAll
+POST http://localhost:8080/account/save
+POST http://localhost:8080/transaction/save
+
+STEP 4: Test Swagger UI
+------------------------
+# Individual service Swagger
+http://localhost:8081/swagger-ui.html  (Account)
+http://localhost:8082/swagger-ui.html  (Transaction)
+
+# Through Gateway - Single Swagger for all (Best)
+http://localhost:8080/swagger-ui.html
+
+How to use Swagger:
+  Step 1 → Open http://localhost:8080/swagger-ui.html
+  Step 2 → Select service from dropdown (account-service or transaction-service)
+  Step 3 → Click any API (GET /account/getAll)
+  Step 4 → Click "Try it out" button
+  Step 5 → Click "Execute" button
+  Step 6 → See Response below
+
+STEP 5: Test Circuit Breaker
+-----------------------------
+Test 1 - Normal (all running):
+  GET http://localhost:8080/account/getAll
+  → Returns account data
+
+Test 2 - Service Down:
+  Stop account_microservice
+  GET http://localhost:8080/account/getAll
+  → Returns: "Account Service is currently down. Please try again later!"
+  GET http://localhost:8080/transaction/getAll
+  → Still works fine!
+
+Test 3 - Service Recovers:
+  Start account_microservice again
+  Wait 10 seconds
+  GET http://localhost:8080/account/getAll
+  → Returns account data again
+
+STEP 6: Push Everything to Git
+--------------------------------
+Right click each project
+→ Team → Commit
+→ Message: "Added Eureka, API Gateway, Load Balancing, Circuit Breaker and Swagger"
+→ Commit and Push
+
+================================================================
+11. RUNNING ORDER (ALWAYS FOLLOW THIS)
+================================================================
+
+1. Start eureka-server          (port 8761)
+2. Start account_microservice   (port 8081)
+3. Start transaction_microservice (port 8082)
+4. Start api-gateway            (port 8080)
+
+================================================================
+12. COMMON ERRORS AND FIXES
+================================================================
+
+Error: Connection refused 8761
+Fix:   You forgot to start Eureka Server first
+
+Error: Service not showing in Eureka dashboard
+Fix:   Check application.properties
+       Make sure defaultZone URL is correct
+       Make sure spring.application.name is set
+
+Error: pom.xml red lines / errors
+Fix:   Right click pom.xml → Maven → Update Project → OK
+
+Error: 404 Not Found via Gateway
+Fix:   Check your controller @RequestMapping
+       Must match gateway route path exactly
+       Example: @RequestMapping("/account") matches Path=/account/**
+
+Error: 503 Service Unavailable
+Fix:   Make sure account/transaction services are running
+       Start them before starting gateway
+
+Error: Could not find lb://ACCOUNT-SERVICE
+Fix:   Check spring.application.name=ACCOUNT-SERVICE
+       Must match exactly in gateway routes (case sensitive)
+
+Error: Fallback not triggering
+Fix:   Make sure FallbackController path matches
+       fallbackUri=forward:/fallback/account must match @GetMapping("/account")
+
+Error: Swagger UI not loading
+Fix:   Make sure dependency added and Maven updated
+       Try URL: http://localhost:8081/swagger-ui/index.html
+
+Error: APIs not showing in Gateway Swagger
+Fix:   Check api-docs routes added in gateway properties
+       Routes 2 and 3 for api-docs must be present
+
+Error: NoClassDefFoundError Resilience4j
+Fix:   Reload Maven after adding circuit breaker dependency
+
+Error: Circuit not opening even service is down
+Fix:   Send multiple requests (5 or more)
+       failure-rate-threshold=50 needs enough requests to calculate
+
+================================================================
+13. FILES SUMMARY - WHAT TO CREATE/EDIT
+================================================================
+
+eureka-server (NEW PROJECT):
+  CREATE: EurekaServerApplication.java  (add @EnableEurekaServer)
+  EDIT:   application.properties        (port 8761, disable self-register)
+
+account_microservice (EXISTING - EDIT ONLY):
+  EDIT: pom.xml                  (add eureka-client + swagger dependency)
+  EDIT: application.properties   (add eureka + swagger lines)
+  CREATE: SwaggerConfig.java     (add @OpenAPIDefinition)
+
+transaction_microservice (EXISTING - EDIT ONLY):
+  EDIT: pom.xml                  (add eureka-client + swagger dependency)
+  EDIT: application.properties   (add eureka + swagger lines)
+  CREATE: SwaggerConfig.java     (add @OpenAPIDefinition)
+
+api-gateway (NEW PROJECT):
+  EDIT:   ApiGatewayApplication.java   (no changes needed in Spring Boot 3.x)
+  EDIT:   pom.xml                      (add circuit breaker + swagger webflux)
+  EDIT:   application.properties       (routes + circuit breaker + swagger)
+  CREATE: FallbackController.java      (fallback methods)
+  CREATE: SwaggerConfig.java           (grouped APIs)
+
+================================================================
+END OF GUIDE
+================================================================
