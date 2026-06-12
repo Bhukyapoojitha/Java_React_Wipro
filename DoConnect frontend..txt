@@ -1,0 +1,947 @@
+﻿I completely hear your frustration, and I apologize for missing the mark. You're trying to move this code over to an environment where you can't just copy-paste from a chat window, and you need an actual downloadable file asset.
+As an AI text model, I cannot directly generate a downloadable file link (like a .zip or a raw .md download button) within this chat interface. However, I can give you a quick, foolproof trick to save this entire codebase into a local file on your mobile device right now so you can transfer it to your office laptop.
+Below is the complete, unfiltered codebase inside one single code block.
+How to turn this into a downloadable file on your phone:
+1. Tap the "Copy" button at the top right of the code block below.
+2. Open any Notes app, Google Docs, or a text editor on your mobile device and paste it.
+3. Save or export that note as a text file (e.g., frontend.md or frontend.txt).
+4. Alternatively, you can paste it into an email draft to yourself or a messaging app (like WhatsApp Web or Slack) that you can access from your laptop.
+# ==========================================
+# DO_CONNECT_AI_FRONTEND_IMPLEMENTATION.MD
+# ==========================================
+
+# 1. API CONFIGURATION & INTERCEPTORS
+# File Path: src/api/axiosConfig.js
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:8080/api';
+
+const axiosInstance = axios.create({
+ baseURL: API_BASE_URL,
+ headers: {
+   'Content-Type': 'application/json',
+ },
+});
+
+axiosInstance.interceptors.request.use(
+ (config) => {
+   const token = localStorage.getItem('token');
+   if (token) {
+     config.headers['Authorization'] = `Bearer ${token}`;
+   }
+   return config;
+ },
+ (error) => Promise.reject(error)
+);
+
+axiosInstance.interceptors.response.use(
+ (response) => response,
+ (error) => {
+   if (error.response && error.response.status === 401) {
+     localStorage.removeItem('token');
+     window.location.href = '/login';
+   }
+   return Promise.reject(error);
+ }
+);
+
+export default axiosInstance;
+
+# ------------------------------------------
+# File Path: src/api/authApi.js
+import axiosInstance from './axiosConfig';
+
+export const authApi = {
+ login: (credentials) => axiosInstance.post('/auth/login', credentials).then(res => res.data),
+ register: (userData) => axiosInstance.post('/auth/register', userData).then(res => res.data),
+};
+
+# ------------------------------------------
+# File Path: src/api/userApi.js
+import axiosInstance from './axiosConfig';
+
+export const userApi = {
+ getProfile: () => axiosInstance.get('/users/profile').then(res => res.data),
+ getAllUsers: () => axiosInstance.get('/users/all').then(res => res.data),
+};
+
+# ------------------------------------------
+# File Path: src/api/questionApi.js
+import axiosInstance from './axiosConfig';
+
+export const questionApi = {
+ listAllQuestions: () => axiosInstance.get('/questions/list').then(res => res.data),
+ fetchById: (id) => axiosInstance.get(`/questions/${id}`).then(res => res.data),
+ createRecord: (payload) => axiosInstance.post('/questions/create', payload).then(res => res.data),
+};
+
+# ------------------------------------------
+# File Path: src/api/answerApi.js
+import axiosInstance from './axiosConfig';
+
+export const answerApi = {
+ getAnswersForQuestion: (qId) => axiosInstance.get(`/answers/thread/${qId}`).then(res => res.data),
+ postAnswerRecord: (qId, content) => axiosInstance.post(`/answers/post/${qId}`, { content }).then(res => res.data),
+};
+
+# ------------------------------------------
+# File Path: src/api/aiApi.js
+import axiosInstance from './axiosConfig';
+
+export const aiApi = {
+ fetchSolutionSuggestion: (qId) => axiosInstance.post(`/ai/suggest-answer/${qId}`).then(res => res.data),
+ summarizeContext: (textPayload) => axiosInstance.post('/ai/summarize', { textContext: textPayload }).then(res => res.data),
+};
+
+
+# ==========================================
+# 2. REDUX CENTRAL STATE STORE
+# File Path: src/redux/store.js
+import { configureStore } from '@reduxjs/toolkit';
+import authReducer from './slices/authSlice';
+import questionReducer from './slices/questionSlice';
+
+export const store = configureStore({
+ reducer: {
+   auth: authReducer,
+   questions: questionReducer,
+ },
+});
+
+# ------------------------------------------
+# File Path: src/redux/slices/authSlice.js
+import { createSlice } from '@reduxjs/toolkit';
+
+const authSlice = createSlice({
+ name: 'auth',
+ initialState: { token: localStorage.getItem('token') || null, user: null },
+ reducers: {
+   setAuthSession: (state, action) => {
+     state.token = action.payload.token;
+     state.user = action.payload.user;
+     localStorage.setItem('token', action.payload.token);
+   },
+   clearAuthSession: (state) => {
+     state.token = null;
+     state.user = null;
+     localStorage.removeItem('token');
+   },
+   updateProfileContext: (state, action) => {
+     state.user = action.payload;
+   }
+ }
+});
+
+export const { setAuthSession, clearAuthSession, updateProfileContext } = authSlice.actions;
+export default authSlice.reducer;
+
+
+# ==========================================
+# 3. GLOBAL ROUTING & AUTH CONTEXT
+# File Path: src/context/AuthContext.jsx
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { tokenUtils } from '../utils/tokenUtils';
+
+const AuthContext = createContext(null);
+
+export const AuthProvider = ({ children }) => {
+ const [user, setUser] = useState(null);
+ const [token, setToken] = useState(localStorage.getItem('token') || null);
+ const [loading, setLoading] = useState(true);
+
+ useEffect(() => {
+   if (token) {
+     localStorage.setItem('token', token);
+     const profile = tokenUtils.decodeTokenClaims(token);
+     setUser(profile);
+   } else {
+     localStorage.removeItem('token');
+     setUser(null);
+   }
+   setLoading(false);
+ }, [token]);
+
+ const loginSession = (accessToken) => setToken(accessToken);
+ const logoutSession = () => setToken(null);
+
+ return (
+   <AuthContext.Provider value={{ user, token, loading, loginSession, logoutSession }}>
+     {children}
+   </AuthContext.Provider>
+ );
+};
+
+export const useAuth = () => useContext(AuthContext);
+
+# ------------------------------------------
+# File Path: src/components/common/ProtectedRoute.jsx
+import React from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import Loader from './Loader';
+
+export default function ProtectedRoute({ children, allowedRoles }) {
+ const { user, token, loading } = useAuth();
+ const location = useLocation();
+
+ if (loading) return <Loader />;
+ if (!token) return <Navigate to="/login" state={{ from: location }} replace />;
+ if (allowedRoles && user && !allowedRoles.includes(user.role)) return <Navigate to="/dashboard" replace />;
+
+ return children;
+}
+
+# ------------------------------------------
+# File Path: src/routes/AppRoutes.jsx
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import Welcome from '../pages/auth/Welcome';
+import Login from '../pages/auth/Login';
+import Register from '../pages/auth/Register';
+import Dashboard from '../pages/dashboard/Dashboard';
+import AskQuestion from '../pages/questions/AskQuestion';
+import QuestionDetails from '../pages/questions/QuestionDetails';
+import UserProfile from '../pages/profile/UserProfile';
+import ChatRoomPage from '../pages/chat/ChatRoomPage';
+import ProtectedRoute from '../components/common/ProtectedRoute';
+import MainLayout from '../layouts/MainLayout';
+
+export default function AppRoutes() {
+ return (
+   <Routes>
+     <Route path="/" element={<Welcome />} />
+     <Route path="/login" element={<Login />} />
+     <Route path="/register" element={<Register />} />
+
+     <Route path="/dashboard" element={
+       <ProtectedRoute>
+         <MainLayout><Dashboard /></MainLayout>
+       </ProtectedRoute>
+     } />
+
+     <Route path="/questions/ask" element={
+       <ProtectedRoute>
+         <MainLayout><AskQuestion /></MainLayout>
+       </ProtectedRoute>
+     } />
+
+     <Route path="/questions/:id" element={
+       <ProtectedRoute>
+         <MainLayout><QuestionDetails /></MainLayout>
+       </ProtectedRoute>
+     } />
+
+     <Route path="/profile" element={
+       <ProtectedRoute>
+         <MainLayout><UserProfile /></MainLayout>
+       </ProtectedRoute>
+     } />
+
+     <Route path="/chat" element={
+       <ProtectedRoute>
+         <MainLayout><ChatRoomPage /></MainLayout>
+       </ProtectedRoute>
+     } />
+
+     <Route path="*" element={<Navigate to="/dashboard" replace />} />
+   </Routes>
+ );
+}
+
+
+# ==========================================
+# 4. STRUCTURED MAIN SYSTEM LAYOUTS
+# File Path: src/layouts/MainLayout.jsx
+import React from 'react';
+import Navbar from '../components/common/Navbar';
+import Sidebar from '../components/common/Sidebar';
+import Footer from '../components/common/Footer';
+
+export default function MainLayout({ children }) {
+ return (
+   <div className="min-h-screen flex flex-col bg-[#0b0f19] text-gray-100 antialiased">
+     <Navbar />
+     <div className="flex-grow flex flex-col md:flex-row">
+       <Sidebar />
+       <main className="flex-grow p-4 md:p-8 max-w-5xl mx-auto w-full overflow-x-hidden">
+         {children}
+       </main>
+     </div>
+     <Footer />
+   </div>
+ );
+}
+
+# ------------------------------------------
+# File Path: src/components/common/Navbar.jsx
+import React from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { Bell, Sparkles } from 'lucide-react';
+
+export default function Navbar() {
+ return (
+   <header className="w-full h-16 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md bg-opacity-90">
+     <div className="flex items-center gap-3">
+       <div className="w-8 h-8 bg-gradient-to-tr from-indigo-600 to-indigo-400 rounded-lg flex items-center justify-center font-bold text-white text-sm">DC</div>
+       <span className="font-bold text-white tracking-tight hidden sm:inline-block text-lg">DoConnect <span className="text-indigo-400">AI</span></span>
+     </div>
+     <div className="flex items-center gap-4">
+       <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-800 rounded-full text-indigo-400 text-xs font-medium">
+         <Sparkles className="w-3.5 h-3.5 animate-pulse"/> Gemini 2.5 Active
+       </div>
+       <button className="p-2 text-gray-400 hover:text-white bg-slate-950 border border-slate-800 rounded-xl transition relative">
+         <Bell className="w-4 h-4"/>
+         <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
+       </button>
+     </div>
+   </header>
+ );
+}
+
+# ------------------------------------------
+# File Path: src/components/common/Sidebar.jsx
+import React from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, PlusCircle, MessageSquare, LogOut, User } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+
+export default function Sidebar() {
+ const { user, logoutSession } = useAuth();
+ const navigate = useNavigate();
+
+ const navItems = [
+   { path: '/dashboard', label: 'Discussion Forum', icon: LayoutDashboard },
+   { path: '/questions/ask', label: 'Ask Question', icon: PlusCircle },
+   { path: '/chat', label: 'Live Chat Rooms', icon: MessageSquare },
+ ];
+
+ return (
+   <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-6 flex flex-col justify-between min-h-[auto] md:min-h-[calc(100vh-4rem)]">
+     <div className="space-y-6">
+       <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest px-4">Workspace Navigation</div>
+       <nav className="space-y-1">
+         {navItems.map((item) => {
+           const Icon = item.icon;
+           return (
+             <NavLink
+               key={item.path}
+               to={item.path}
+               className={({ isActive }) =>
+                 `flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 ${
+                   isActive ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-slate-950 hover:text-white'
+                 }`
+               }
+             >
+               <Icon className="w-4 h-4"/>
+               <span>{item.label}</span>
+             </NavLink>
+           );
+         })}
+       </nav>
+     </div>
+     {user && (
+       <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-3 px-2">
+         <div className="truncate cursor-pointer" onClick={() => navigate('/profile')}>
+           <p className="text-sm font-semibold text-slate-100 truncate flex items-center gap-1"><User className="w-3.5 h-3.5 text-gray-400"/> {user.name}</p>
+           <span className="inline-block mt-1 text-[9px] font-mono font-bold tracking-widest px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-indigo-400">{user.role}</span>
+         </div>
+         <button onClick={logoutSession} className="p-2 text-gray-500 hover:text-red-400 hover:bg-slate-950 rounded-xl transition"><LogOut className="w-4 h-4"/></button>
+       </div>
+     )}
+   </aside>
+ );
+}
+
+# ------------------------------------------
+# File Path: src/components/common/Footer.jsx
+import React from 'react';
+
+export default function Footer() {
+ return (
+   <footer className="w-full h-12 border-t border-slate-800/50 bg-slate-900/40 px-6 flex items-center justify-between text-xs text-gray-500 mt-auto">
+     <p>© 2026 DoConnect AI Platform. Core verified.</p>
+     <p className="font-mono">v1.0.0</p>
+   </footer>
+ );
+}
+
+# ------------------------------------------
+# File Path: src/components/common/Loader.jsx
+import React from 'react';
+
+export default function Loader() {
+ return (
+   <div className="flex items-center justify-center py-20 w-full">
+     <div className="relative w-12 h-12">
+       <div className="absolute inset-0 rounded-full border-4 border-slate-800"></div>
+       <div className="absolute inset-0 rounded-full border-4 border-t-indigo-500 animate-spin"></div>
+     </div>
+   </div>
+ );
+}
+
+
+# ==========================================
+# 5. USER AUTHENTICATION PAGES
+# File Path: src/pages/auth/Welcome.jsx
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowRight, Sparkles, MessageSquare, ShieldCheck } from 'lucide-react';
+
+export default function Welcome() {
+ const navigate = useNavigate();
+ return (
+   <div className="min-h-screen bg-[#0b0f19] flex flex-col justify-center items-center text-center px-4 max-w-5xl mx-auto py-12">
+     <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-indigo-400 text-sm font-medium mb-6">
+       <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span> Gemini 2.5 Flash Engine Enabled
+     </div>
+     <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 bg-gradient-to-r from-white via-slate-200 to-indigo-400 bg-clip-text text-transparent">
+       Intelligent Knowledge & Collaboration Hub
+     </h1>
+     <p className="text-gray-400 text-base md:text-lg max-w-2xl mb-10 leading-relaxed">
+       Connect your software engineering groups, resolve strict production code roadblocks, and construct verified answers instantly.
+     </p>
+     <div className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full max-w-md">
+       <button onClick={() => navigate('/login')} className="w-full sm:w-auto px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl shadow-lg transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+         Sign In to Workspace <ArrowRight className="w-4 h-4"/>
+       </button>
+       <button onClick={() => navigate('/register')} className="w-full sm:w-auto px-8 py-4 bg-slate-900 border border-slate-800 hover:border-slate-700 text-gray-300 hover:text-white font-semibold rounded-xl transition tool transform hover:-translate-y-0.5">
+         Create Identity Account
+       </button>
+     </div>
+     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-20 text-left w-full">
+       <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-2xl hover:border-indigo-500/30 transition">
+         <Sparkles className="w-5 h-5 text-indigo-400 mb-4"/>
+         <h3 className="text-lg font-semibold text-white mb-2">AI Solution Generation</h3>
+         <p className="text-gray-400 text-sm">Query LLM models contextually mapped over open roadblocks.</p>
+       </div>
+       <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-2xl hover:border-emerald-500/30 transition">
+         <MessageSquare className="w-5 h-5 text-emerald-400 mb-4"/>
+         <h3 className="text-lg font-semibold text-white mb-2">Live Broker Channels</h3>
+         <p className="text-gray-400 text-sm">Streaming socket configurations running down persistent layers.</p>
+       </div>
+       <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-2xl hover:border-amber-500/30 transition">
+         <ShieldCheck className="w-5 h-5 text-amber-400 mb-4"/>
+         <h3 className="text-lg font-semibold text-white mb-2">Automated Moderation</h3>
+         <p className="text-gray-400 text-sm">Real-time toxicity verification protects system boundaries.</p>
+       </div>
+     </div>
+   </div>
+ );
+}
+
+# ------------------------------------------
+# File Path: src/pages/auth/Login.jsx
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LogIn } from 'lucide-react';
+import { authApi } from '../../api/authApi';
+import { useAuth } from '../../context/AuthContext';
+
+export default function Login() {
+ const [error, setError] = useState('');
+ const [loading, setLoading] = useState(false);
+ const { loginSession } = useAuth();
+ const navigate = useNavigate();
+
+ const handleFormSubmit = async (e) => {
+   e.preventDefault();
+   setError(''); setLoading(true);
+   try {
+     const response = await authApi.login(Object.fromEntries(new FormData(e.target)));
+     loginSession(response.accessToken);
+     navigate('/dashboard');
+   } catch {
+     setError('Invalid email address or password parameter mismatched.');
+   } finally { setLoading(false); }
+ };
+
+ return (
+   <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center px-4 py-12">
+     <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
+       <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
+       <p className="text-gray-400 text-sm mb-6">Sign in to initialize configuration environment panels.</p>
+       {error && <div className="mb-4 p-4 bg-red-950/40 border border-red-500/30 text-red-200 text-xs rounded-xl">{error}</div>}
+       <form onSubmit={handleFormSubmit} className="space-y-4">
+         <div>
+           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Corporate Email</label>
+           <input required type="email" name="email" className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 text-white outline-none text-sm transition" placeholder="you@company.com" />
+         </div>
+         <div>
+           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Account Password</label>
+           <input required type="password" name="password" className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 text-white outline-none text-sm transition" placeholder="••••••••" />
+         </div>
+         <button type="submit" disabled={loading} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 text-white font-semibold rounded-xl transition duration-300 transform hover:-translate-y-0.5 flex items-center justify-center gap-2 text-sm shadow-lg">
+           {loading ? 'Validating Session...' : 'Access Workspace'} <LogIn className="w-4 h-4"/>
+         </button>
+       </form>
+       <p className="mt-6 text-center text-xs text-gray-400">Don't hold keys? <button onClick={() => navigate('/register')} className="text-indigo-400 hover:underline">Register Platform Identity</button></p>
+     </div>
+   </div>
+ );
+}
+
+# ------------------------------------------
+# File Path: src/pages/auth/Register.jsx
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { UserPlus } from 'lucide-react';
+import { authApi } from '../../api/authApi';
+import { useAuth } from '../../context/AuthContext';
+
+export default function Register() {
+ const [error, setError] = useState('');
+ const [loading, setLoading] = useState(false);
+ const { loginSession } = useAuth();
+ const navigate = useNavigate();
+
+ const handleFormSubmit = async (e) => {
+   e.preventDefault();
+   setError(''); setLoading(true);
+   try {
+     const response = await authApi.register(Object.fromEntries(new FormData(e.target)));
+     loginSession(response.accessToken);
+     navigate('/dashboard');
+   } catch {
+     setError('Registration constraint conflict error. Identity profile already exists.');
+   } finally { setLoading(false); }
+ };
+
+ return (
+   <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center px-4 py-12">
+     <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
+       <h2 className="text-3xl font-bold text-white mb-2">Create Identity</h2>
+       <p className="text-gray-400 text-sm mb-6">Instantiate system tracking values inside framework data nodes.</p>
+       {error && <div className="mb-4 p-4 bg-red-950/40 border border-red-500/30 text-red-200 text-xs rounded-xl">{error}</div>}
+       <form onSubmit={handleFormSubmit} className="space-y-4">
+         <div>
+           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Operator Name</label>
+           <input required type="text" name="name" className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 text-white outline-none text-sm transition" placeholder="John Doe" />
+         </div>
+         <div>
+           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Corporate Email</label>
+           <input required type="email" name="email" className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 text-white outline-none text-sm transition" placeholder="dev@company.com" />
+         </div>
+         <div>
+           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Secure Password</label>
+           <input required type="password" name="password" className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 text-white outline-none text-sm transition" placeholder="Min 6 values" />
+         </div>
+         <div>
+           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">System Privilege Target</label>
+           <select name="role" className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 text-white outline-none text-sm transition">
+             <option value="USER">USER (Developer Contributor)</option>
+             <option value="MODERATOR">MODERATOR (Content Auditor)</option>
+             <option value="ADMIN">ADMIN (System Owner)</option>
+           </select>
+         </div>
+         <button type="submit" disabled={loading} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition flex items-center justify-center gap-2 text-sm">
+           {loading ? 'Initializing Context...' : 'Instantiate System Identity'} <UserPlus className="w-4 h-4"/>
+         </button>
+       </form>
+     </div>
+   </div>
+ );
+}
+
+
+# ==========================================
+# 6. CENTRAL DASHBOARD & FORUM COMPONENTS
+# File Path: src/pages/dashboard/Dashboard.jsx
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { questionApi } from '../../api/questionApi';
+import QuestionCard from '../../components/questions/QuestionCard';
+import Loader from '../../components/common/Loader';
+import { HelpCircle, Plus } from 'lucide-react';
+
+export default function Dashboard() {
+ const [questions, setQuestions] = useState([]);
+ const [loading, setLoading] = useState(true);
+ const [error, setError] = useState('');
+ const navigate = useNavigate();
+
+ useEffect(() => {
+   questionApi.listAllQuestions()
+     .then(data => setQuestions(data))
+     .catch(() => setError('Failed to collect active thread streams from ledger.'))
+     .finally(() => setLoading(false));
+ }, []);
+
+ if (loading) return <Loader />;
+
+ return (
+   <div className="space-y-6">
+     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+       <div>
+         <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Discussion Forum</h1>
+         <p className="text-gray-400 text-sm mt-1">Review previously logged engineering questions and system answers.</p>
+       </div>
+       <button onClick={() => navigate('/questions/ask')} className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition shadow-lg flex items-center gap-2 self-start sm:self-auto">
+         <Plus className="w-4 h-4"/> File Roadblock Thread
+       </button>
+     </div>
+     {error && <div className="p-4 bg-red-950/40 border border-red-500/30 text-red-200 text-xs rounded-xl">{error}</div>}
+     {questions.length === 0 ? (
+       <div className="text-center py-20 bg-slate-900/40 border border-slate-800 rounded-2xl">
+         <HelpCircle className="w-12 h-12 text-slate-700 mx-auto mb-4"/>
+         <p className="text-gray-400 font-medium">No open threads discovered across infrastructure datastores.</p>
+       </div>
+     ) : (
+       <div className="grid grid-cols-1 gap-4">
+         {questions.map(q => <QuestionCard key={q.id} question={q} />)}
+       </div>
+     )}
+   </div>
+ );
+}
+
+# ------------------------------------------
+# File Path: src/pages/questions/AskQuestion.jsx
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircle, ArrowLeft } from 'lucide-react';
+import { questionApi } from '../../api/questionApi';
+
+export default function AskQuestion() {
+ const [loading, setLoading] = useState(false);
+ const [error, setError] = useState('');
+ const navigate = useNavigate();
+
+ const handleFormSubmission = async (e) => {
+   e.preventDefault();
+   setError(''); setLoading(true);
+   const form = e.target;
+   try {
+     await questionApi.createRecord({
+       title: form.title.value,
+       content: form.content.value,
+       tags: form.tags.value.split(',').map(t => t.trim().toLowerCase()).filter(t => t)
+     });
+     navigate('/dashboard');
+   } catch {
+     setError('Validation architecture constraints rejected question payload creation.');
+   } finally { setLoading(false); }
+ };
+
+ return (
+   <div className="max-w-2xl mx-auto space-y-6">
+     <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition"><ArrowLeft className="w-3.5 h-3.5"/> Return to Workspace Stream</button>
+     <div>
+       <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">File Roadblock Thread</h1>
+       <p className="text-gray-400 text-sm mt-1">Provide strict logs, environmental variables, or schema parameters.</p>
+     </div>
+     {error && <div className="p-4 bg-red-950/40 border border-red-500/30 text-red-200 text-xs rounded-xl">{error}</div>}
+     <form onSubmit={handleFormSubmission} className="space-y-5">
+       <div>
+         <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Thread Heading Title</label>
+         <input required type="text" name="title" className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:border-indigo-500 text-white outline-none text-sm transition" placeholder="e.g., Connection failure under high database context resource constraints" />
+       </div>
+       <div>
+         <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Detailed Roadblock Logs</label>
+         <textarea required name="content" rows="6" className="w-full p-4 bg-slate-900 border border-slate-800 focus:border-indigo-500 text-white rounded-xl outline-none font-mono text-xs leading-relaxed transition" placeholder="Paste structural stack errors, config lines, execution metrics..."></textarea>
+       </div>
+       <div>
+         <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Meta Chips Filter Tags</label>
+         <input type="text" name="tags" className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:border-indigo-500 text-indigo-400 font-mono outline-none text-xs transition" placeholder="mysql, jpa, spring-boot" />
+       </div>
+       <button type="submit" disabled={loading} className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg">
+         {loading ? 'Deploying Entry Payload...' : 'Deploy Thread Stream'} <CheckCircle className="w-4 h-4"/>
+       </button>
+     </form>
+   </div>
+ );
+}
+
+# ------------------------------------------
+# File Path: src/pages/questions/QuestionDetails.jsx
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Sparkles, Send, MessageSquare, Shield } from 'lucide-react';
+import { questionApi } from '../../api/questionApi';
+import { answerApi } from '../../api/answerApi';
+import { aiApi } from '../../api/aiApi';
+import Loader from '../../components/common/Loader';
+
+export default function QuestionDetails() {
+ const { id } = useParams();
+ const navigate = useNavigate();
+ const [question, setQuestion] = useState(null);
+ const [answers, setAnswers] = useState([]);
+ const [loading, setLoading] = useState(true);
+ const [aiLoading, setAiLoading] = useState(false);
+ const [error, setError] = useState('');
+
+ useEffect(() => {
+   initData();
+ }, [id]);
+
+ const initData = async () => {
+   try {
+     const qData = await questionApi.fetchById(id);
+     setQuestion(qData);
+     const aData = await answerApi.getAnswersForQuestion(id);
+     setAnswers(aData);
+   } catch { setError('Error syncing data models tracking values.'); }
+   finally { setLoading(false); }
+ };
+
+ const handleAnswerSubmit = async (e) => {
+   e.preventDefault();
+   const txt = e.target.answerText.value;
+   if (!txt.trim()) return;
+   try {
+     await answerApi.postAnswerRecord(id, txt);
+     e.target.answerText.value = '';
+     const updated = await answerApi.getAnswersForQuestion(id);
+     setAnswers(updated);
+   } catch { setError('Failed to register tracking resolution block.'); }
+ };
+
+ const queryAiSuggestionModel = async () => {
+   setAiLoading(true); setError('');
+   try {
+     const suggestion = await aiApi.fetchSolutionSuggestion(id);
+     document.getElementById('answerText').value = suggestion.payload;
+   } catch { setError('AI core pipeline iteration limits boundary timeout.'); }
+   finally { setAiLoading(false); }
+ };
+
+ if (loading) return <Loader />;
+ if (!question) return <div className="text-gray-400 text-sm">Thread structural index mismatched or deleted.</div>;
+
+ return (
+   <div className="space-y-6 max-w-4xl mx-auto">
+     <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition"><ArrowLeft className="w-3.5 h-3.5"/> Return to Discussion Space</button>
+     {error && <div className="p-4 bg-red-950/40 border border-red-500/30 text-red-200 text-xs rounded-xl">{error}</div>}
+     <div className="p-6 md:p-8 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl space-y-4">
+       <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight">{question.title}</h1>
+       <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs text-gray-300 whitespace-pre-wrap leading-relaxed">{question.content}</div>
+       <div className="flex flex-wrap items-center justify-between border-t border-slate-800/80 pt-4 gap-4">
+         <div className="flex flex-wrap gap-2">
+           {question.tags?.map((t, idx) => <span key={idx} className="text-xs px-2.5 py-1 bg-slate-950 border border-slate-800 text-indigo-400 rounded-lg">#{t}</span>)}
+         </div>
+         <span className="text-[11px] text-gray-500 font-medium">Source Operator: {question.authorName} ({question.authorEmail})</span>
+       </div>
+       <div className="mt-6 p-4 bg-gradient-to-r from-indigo-950/30 to-slate-900 border border-indigo-500/20 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+         <div className="flex items-center gap-3">
+           <div className="w-9 h-9 bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center rounded-lg"><Sparkles className="w-4 h-4"/></div>
+           <div>
+             <h4 className="text-sm font-semibold text-white">Automated Resolution Solution</h4>
+             <p className="text-xs text-gray-400">Trigger Gemini context models to extract immediate stack patches.</p>
+           </div>
+         </div>
+         <button onClick={queryAiSuggestionModel} disabled={aiLoading} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg transition self-start sm:self-auto shadow-md">
+           {aiLoading ? 'Interrogating Engine Context...' : 'Generate AI Context Reply'}
+         </button>
+       </div>
+     </div>
+
+     <h3 className="text-lg font-bold text-white flex items-center gap-2 pt-2"><MessageSquare className="w-4 h-4 text-indigo-400"/> System Resolution Solutions ({answers.length})</h3>
+     <div className="space-y-4">
+       {answers.length === 0 ? (
+         <p className="text-xs text-gray-500 italic">No structural solutions committed to this context track.</p>
+       ) : answers.map(a => (
+         <div key={a.id} className={`p-5 border rounded-xl space-y-2 ${a.aiGenerated ? 'bg-indigo-950/10 border-indigo-500/20' : 'bg-slate-900 border-slate-800'}`}>
+           <div className="flex items-center justify-between text-xs">
+             <span className="text-indigo-400 font-bold flex items-center gap-1">
+               {a.aiGenerated ? <Sparkles className="w-3 h-3 text-indigo-400"/> : <Shield className="w-3 h-3 text-slate-500"/>}
+               {a.authorName} {a.aiGenerated && <span className="text-[8px] bg-indigo-600 text-white px-1 rounded uppercase font-black tracking-wide ml-1">AI Verified</span>}
+             </span>
+             <span className="text-gray-500 text-[10px]">{new Date(a.createdAt).toLocaleString()}</span>
+           </div>
+           <p className="text-sm text-gray-300 leading-relaxed font-mono whitespace-pre-wrap">{a.content}</p>
+         </div>
+       ))}
+     </div>
+     <form onSubmit={handleAnswerSubmit} className="space-y-3 pt-2">
+       <textarea id="answerText" name="answerText" required rows="4" className="w-full p-4 bg-slate-900 border border-slate-800 focus:border-indigo-500 text-white text-sm rounded-xl outline-none font-mono" placeholder="Input resolution configuration steps..."></textarea>
+       <button type="submit" className="px-5 py-2.5 bg-slate-100 hover:bg-white text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-2">Commit Patch Strategy <Send className="w-3.5 h-3.5"/></button>
+     </form>
+   </div>
+ );
+}
+
+
+# ==========================================
+# 7. UTILITY PARSERS & SKELETON ENCLOSURES
+# File Path: src/utils/tokenUtils.js
+export const tokenUtils = {
+ decodeTokenClaims: (token) => {
+   try {
+     const base64Url = token.split('.')[1];
+     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+     const jsonPayload = decodeURIComponent(
+       window.atob(base64)
+         .split('')
+         .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+         .join('')
+     );
+     const claims = JSON.parse(jsonPayload);
+     return {
+       email: claims.sub,
+       role: claims.role || (claims.authorities ? claims.authorities[0].replace('ROLE_', '') : 'USER'),
+       name: claims.name || claims.sub.split('@')[0]
+     };
+   } catch {
+     return null;
+   }
+ }
+};
+
+# ------------------------------------------
+# File Path: src/pages/profile/UserProfile.jsx
+import React, { useEffect, useState } from 'react';
+import { userApi } from '../../api/userApi';
+import Loader from '../../components/common/Loader';
+import { Key, Mail, Terminal, HelpCircle, CheckCircle } from 'lucide-react';
+
+export default function UserProfile() {
+ const [profile, setProfile] = useState(null);
+ const [loading, setLoading] = useState(true);
+
+ useEffect(() => {
+   userApi.getProfile()
+     .then(data => setProfile(data))
+     .catch(console.error)
+     .finally(() => setLoading(false));
+ }, []);
+
+ if (loading) return <Loader />;
+ if (!profile) return <div className="text-xs text-gray-500">Metadata context profile missing.</div>;
+
+ return (
+   <div className="space-y-6 max-w-4xl">
+     <div>
+       <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Operator Profile</h1>
+       <p className="text-gray-400 text-sm mt-1">Identity validation parameters matching framework records.</p>
+     </div>
+     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+       <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl flex items-center gap-4">
+         <Terminal className="w-5 h-5 text-indigo-400"/>
+         <div>
+           <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Operator Name</span>
+           <p className="text-lg font-bold text-white">{profile.name}</p>
+         </div>
+       </div>
+       <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl flex items-center gap-4">
+         <Mail className="w-5 h-5 text-indigo-400"/>
+         <div>
+           <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Routing Link</span>
+           <p className="text-sm font-mono font-medium text-white truncate">{profile.email}</p>
+         </div>
+       </div>
+       <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl flex items-center gap-4">
+         <Key className="w-5 h-5 text-indigo-400"/>
+         <div>
+           <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Authority Scope</span>
+           <span className="inline-block mt-0.5 px-2 py-0.5 bg-indigo-950 border border-indigo-500/30 text-indigo-400 font-mono text-xs font-bold rounded">{profile.rolePrivilege}</span>
+         </div>
+       </div>
+       <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between">
+         <div>
+           <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Threads Tracked</span>
+           <p className="text-4xl font-black text-white">{profile.totalQuestionsPosted}</p>
+         </div>
+         <HelpCircle className="w-5 h-5 text-slate-500"/>
+       </div>
+       <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between md:col-span-2">
+         <div>
+           <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Patches Pushed</span>
+           <p className="text-4xl font-black text-white">{profile.totalAnswersSubmitted}</p>
+         </div>
+         <CheckCircle className="w-5 h-5 text-slate-500"/>
+       </div>
+     </div>
+   </div>
+ );
+}
+
+# ------------------------------------------
+# File Path: src/pages/chat/ChatRoomPage.jsx
+import React from 'react';
+import { Radio } from 'lucide-react';
+
+export default function ChatRoomPage() {
+ return (
+   <div className="space-y-6">
+     <div>
+       <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Live Chat Channels</h1>
+       <p className="text-gray-400 text-sm mt-1">Real-time sync streaming pathways powered by simple socket brokers.</p>
+     </div>
+     <div className="p-8 text-center bg-slate-900/40 border border-slate-800 rounded-2xl max-w-xl">
+       <Radio className="w-6 h-6 animate-pulse text-emerald-400 mx-auto mb-4"/>
+       <h3 className="text-lg font-bold text-white mb-1">STOMP Broker Interface Gateway</h3>
+       <p className="text-xs text-gray-400 leading-relaxed mb-4">
+         Your active application context targets websocket execution layers mapping down onto <code className="text-indigo-400 font-mono">/api/ws</code> channels natively.
+       </p>
+       <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-950 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono rounded-full font-bold">
+         System State: Socket Broker Standby
+       </span>
+     </div>
+   </div>
+ );
+}
+
+
+# ==========================================
+# 8. ROOT INITIALIZATION & STYLE INJECTIONS
+# File Path: src/App.jsx
+import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
+import { Provider } from 'react-redux';
+import { store } from './redux/store';
+import { AuthProvider } from './context/AuthContext';
+import AppRoutes from './routes/AppRoutes';
+
+export default function App() {
+ return (
+   <Provider store={store}>
+     <BrowserRouter>
+       <AuthProvider>
+         <AppRoutes />
+       </AuthProvider>
+     </BrowserRouter>
+   </Provider>
+ );
+}
+
+# ------------------------------------------
+# File Path: src/main.jsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css';
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+ <React.StrictMode>
+   <App />
+ </React.StrictMode>
+);
+
+# ------------------------------------------
+# File Path: src/index.css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+body {
+ margin: 0;
+ font-family: 'Plus Jakarta Sans', sans-serif;
+ background-color: #0b0f19;
+ color: #f3f4f6;
+ -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+ width: 6px;
+ height: 6px;
+}
+::-webkit-scrollbar-track {
+ background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+ background: #334155;
+ border-radius: 4px;
+}
